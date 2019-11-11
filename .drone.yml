@@ -24,7 +24,7 @@ clone:
 pipeline:
 
   build:
-    image: devexpress/devextreme-build:19_2
+    image: devexpress/devextreme-build:2019-11-11
     environment:
       - HEADLESS=true
     commands:
