@@ -501,70 +501,6 @@ QUnit.test("Undelete command buttons should contains aria-label accessibility at
     });
 });
 
-QUnit.test("Command buttons should contains tabindex=-1 (T805341)", function(assert) {
-    // arrange
-    var columnsWrapper = dataGridWrapper.columns,
-        dataGrid = createDataGrid({
-            dataSource: [{ id: 0, c0: "c0" }],
-            columns: [
-                {
-                    type: "buttons",
-                    buttons: ["edit", "delete", "save", "cancel"]
-                },
-                "id"
-            ],
-            editing: {
-                allowUpdating: true,
-                allowDeleting: true,
-                useIcons: true
-            }
-        });
-
-    this.clock.tick();
-
-    // assert
-    columnsWrapper.getCommandButtons().each((_, button) => {
-        assert.equal($(button).attr("tabindex"), -1, "tabIndex = -1");
-    });
-
-    // act
-    dataGrid.editRow(0);
-    // assert
-    columnsWrapper.getCommandButtons().each((_, button) => {
-        assert.equal($(button).attr("tabindex"), -1, "tabIndex = -1");
-    });
-});
-
-QUnit.test("Undelete command button should contains tabindex=-1 (T805341)", function(assert) {
-    // arrange
-    var columnsWrapper = dataGridWrapper.columns,
-        dataGrid = createDataGrid({
-            dataSource: [{ id: 0, c0: "c0" }],
-            columns: [
-                {
-                    type: "buttons",
-                    buttons: ["undelete"]
-                },
-                "id"
-            ],
-            editing: {
-                mode: "batch",
-                allowUpdating: true,
-                allowDeleting: true,
-                useIcons: true
-            }
-        });
-
-    this.clock.tick();
-
-    // act
-    dataGrid.deleteRow(0);
-    // assert
-    columnsWrapper.getCommandButtons().each((_, button) => {
-        assert.equal($(button).attr("tabindex"), -1, "tabIndex = -1");
-    });
-});
-
 QUnit.test("Customize text called for column only (T653374)", function(assert) {
     createDataGrid({
         columns:
@@ -3434,6 +3370,96 @@ QUnit.test("Resize grid after column resizing to right when columnResizingMode i
         assert.strictEqual(headersCols[1].style.width, "100px");
         assert.strictEqual(headersCols[2].style.width, "100px");
     }
+});
+
+QUnit.test("DataGrid - A fixed rows should be synchronized after change column width if wordWrapEnabled and height are set (T830739)", function(assert) {
+    // arrange
+    let fixedRow,
+        dataRow,
+        rowsViewWrapper = dataGridWrapper.rowsView,
+        dataGrid = $("#dataGrid").dxDataGrid({
+            loadingTimeout: undefined,
+            width: 400,
+            height: 150,
+            dataSource: [
+                { id: 0, c0: "Test00 resize", c1: "Test10" },
+                { id: 1, c0: "Test01 resize", c1: "Test11" }
+            ],
+            allowColumnResizing: true,
+            rowAlternationEnabled: true,
+            wordWrapEnabled: true,
+            columns: [
+                { dataField: "id", width: 100, fixed: true },
+                "c0",
+                "c1"
+            ]
+        }).dxDataGrid("instance");
+
+    // act
+    dataGrid.columnOption("c0", "width", 60);
+
+    // arrange, assert
+    fixedRow = rowsViewWrapper.getFixedDataRowElement(0);
+    dataRow = rowsViewWrapper.getDataRowElement(0);
+    assert.deepEqual(fixedRow.position(), dataRow.position(), "1st row position");
+    assert.equal(fixedRow.height(), dataRow.height(), "1st row height");
+
+    // arrange, assert
+    fixedRow = rowsViewWrapper.getFixedDataRowElement(1);
+    dataRow = rowsViewWrapper.getDataRowElement(1);
+    assert.deepEqual(fixedRow.position(), dataRow.position(), "2nd row position");
+    assert.equal(fixedRow.height(), dataRow.height(), "2nd row height");
+});
+
+QUnit.test("DataGrid - A fixed rows should be synchronized after resize column if wordWrapEnabled and height are set (T830739)", function(assert) {
+    // arrange
+    let fixedRow,
+        dataRow,
+        rowsViewWrapper = dataGridWrapper.rowsView,
+        dataGrid = $("#dataGrid").dxDataGrid({
+            loadingTimeout: undefined,
+            width: 400,
+            height: 150,
+            dataSource: [
+                { id: 0, c0: "Test00 resize", c1: "Test10" },
+                { id: 1, c0: "Test01 resize", c1: "Test11" }
+            ],
+            allowColumnResizing: true,
+            rowAlternationEnabled: true,
+            wordWrapEnabled: true,
+            columns: [
+                { dataField: "id", width: 100, fixed: true },
+                { dataField: "c0", width: 200 },
+                { dataField: "c1", width: 100 }
+            ]
+        }).dxDataGrid("instance");
+
+    // act
+    const startPosition = -9700;
+    const resizeController = dataGrid.getController("columnsResizer");
+    resizeController._isResizing = true;
+    resizeController._targetPoint = { columnIndex: 1 };
+    resizeController._setupResizingInfo(startPosition);
+    resizeController._moveSeparator({
+        event: {
+            data: resizeController,
+            type: "mousemove",
+            pageX: startPosition - 150,
+            preventDefault: commonUtils.noop
+        }
+    });
+
+    // arrange, assert
+    fixedRow = rowsViewWrapper.getFixedDataRowElement(0);
+    dataRow = rowsViewWrapper.getDataRowElement(0);
+    assert.deepEqual(fixedRow.position(), dataRow.position(), "1st row position");
+    assert.equal(fixedRow.height(), dataRow.height(), "1st row height");
+
+    // arrange, assert
+    fixedRow = rowsViewWrapper.getFixedDataRowElement(1);
+    dataRow = rowsViewWrapper.getDataRowElement(1);
+    assert.deepEqual(fixedRow.position(), dataRow.position(), "2nd row position");
+    assert.equal(fixedRow.height(), dataRow.height(), "2nd row height");
 });
 
 QUnit.test("Column widths should be correct after resize column to show scroll if fixed column is exists", function(assert) {
@@ -17850,4 +17876,141 @@ QUnit.test("Filter builder custom operations should update filterValue immediate
 
     // assert
     assert.equal(filterBuilder.getItemValueTextParts().length, 2, "IsAnyOf operation applyed");
+});
+
+QUnit.test("An item in edit form should not lose focus when it's value is changed in setCellValue (T822877)", function(assert) {
+    // arrange
+    var rowsViewWrapper = dataGridWrapper.rowsView;
+    var dataGrid = createDataGrid({
+        dataSource: [{ id: 0, name: "Alex", age: "26" }],
+        repaintChangesOnly: true,
+        selection: {
+            mode: "multiple"
+        },
+        editing: {
+            mode: "form",
+            allowUpdating: true
+        },
+        columns: [
+            {
+                dataField: "age",
+                name: "Age 1",
+                visible: false
+            },
+            {
+                dataField: "name",
+                setCellValue: function(data, value) {
+                    data.name = value;
+                }
+            },
+            {
+                dataField: "age_2",
+                name: "Age 2",
+                visible: true
+            },
+            {
+                type: "buttons",
+                allowHiding: false,
+                fixed: true,
+                buttons: [{ name: "edit" }]
+            }
+        ]
+    });
+    this.clock.tick();
+
+    // act
+    dataGrid.editRow(0);
+    this.clock.tick();
+
+    rowsViewWrapper.getFormEditorInput(1)
+        .focus()
+        .val("Sarah")
+        .trigger("change");
+    this.clock.tick();
+
+    // assert
+    assert.equal($(":focus")[0], rowsViewWrapper.getFormEditorInput(1)[0], "focus does not lose");
+});
+
+QUnit.test("An item in edit form should change value from setCellValue of another column (T822877)", function(assert) {
+    // arrange
+    var rowsViewWrapper = dataGridWrapper.rowsView;
+    var dataGrid = createDataGrid({
+        dataSource: [{ id: 0, name: "Alex", age: "26" }],
+        repaintChangesOnly: true,
+        editing: {
+            mode: "form",
+            allowUpdating: true
+        },
+        columns: [
+            "age",
+            {
+                dataField: "name",
+                setCellValue: function(data, value) {
+                    data.name = value;
+                    data.age = value;
+                }
+            }
+        ]
+    });
+    this.clock.tick();
+
+    // act
+    dataGrid.editRow(0);
+    this.clock.tick();
+
+    rowsViewWrapper.getFormEditorInput(1)
+        .focus()
+        .val("100")
+        .trigger("change");
+    this.clock.tick();
+
+    // assert
+    assert.equal(rowsViewWrapper.getFormEditorInput(0).val(), "100", "another column value");
+
+    // act
+    rowsViewWrapper.getFormEditorInput(1)
+        .focus()
+        .val("200")
+        .trigger("change");
+    this.clock.tick();
+
+    // assert
+    assert.equal(rowsViewWrapper.getFormEditorInput(0).val(), "200", "another column value");
+});
+
+QUnit.test("An item in edit form should change value without exceptions if setCellValue is set (T822877)", function(assert) {
+    // arrange
+    var rowsViewWrapper = dataGridWrapper.rowsView;
+    var dataGrid = createDataGrid({
+        dataSource: [{ name: "Alex", age: "26" }],
+        repaintChangesOnly: true,
+        editing: {
+            mode: "form",
+            allowUpdating: true
+        },
+        columns: [
+            {
+                dataField: "name",
+                setCellValue: function(data, value) {
+                    data.name = value;
+                }
+            },
+            "age"
+        ]
+    });
+    this.clock.tick();
+
+    // act
+    dataGrid.editRow(0);
+    this.clock.tick();
+
+    rowsViewWrapper.getFormEditorInput(0)
+        .focus()
+        .val("100")
+        .trigger("change");
+    this.clock.tick();
+
+    // assert
+    assert.equal(dataGrid.cellValue(0, "name"), "100", "value is applied");
 });
